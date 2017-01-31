@@ -1,19 +1,43 @@
+#!/usr/bin/env python
+"""
+Read large pcap or pcapng files are slow.
+This code creates a csv file as a buffer to
+store the data retrived from pcap or pcapng
+files. Instead of reading from pcap or pcapng
+file each time, data will be retrived from
+the csv file if possible.
+
+Delete the csv file if there is any problem.
+
+scapy only supports pcap file.
+System call of tshark is used instead.
+
+Requires tshark.
+
+Usage example:
+data=read_pcap_files(files, columns, filter_str, output_file)
+"""
 import subprocess
 import sys
 import os
-import matplotlib.pyplot as plt
-import numpy as np
 import glob
 import csv
 
+__author__ = "Xingsi Zhong"
+__email__ = "xingsiz@g.clemson.edu"
 
-class Pcap_File_Reader:  # used to get data from buffered file, or the original pcapng file. usage:a=pcap_file_path('pcap_file_path'); a.read_pcap('data','filter')
+class Pcap_File_Reader:
+    """
+    Used to get data from buffered file, or the original pcap(ng) file.
+    Usage example:
+    a=Pcap_File_Reader('pcap_file_path')
+    data=a.read_pcap(['time_delta_displayed'],'ip.src==192.168.0.196&&ip.dst==192.64.172.182')
+    """
     def __init__(self, file_path):
         self.pcap_file_path = os.path.abspath(file_path)
         self.dirname = os.path.dirname(file_path)
         self.basename = os.path.basename(file_path)
         self.name_without_ext = os.path.splitext(self.basename)[0]
-        self.png_file_path = os.path.join(self.dirname, self.name_without_ext + '.png')
         self.csv_file_path = os.path.join(self.dirname, self.name_without_ext + '.csv')
         
     def _read_from_pcap(self, columns, filter_str):
@@ -90,7 +114,7 @@ class Pcap_File_Reader:  # used to get data from buffered file, or the original 
                     data.append([row[columns_dict[column]] for column in columns])
             return data
         except IOError as e:
-            print 'No buffer file found.'
+            #print 'No buffer file found.'
             data=self._create_csv(columns, filter_str)
             return data
         # print data
@@ -98,16 +122,30 @@ class Pcap_File_Reader:  # used to get data from buffered file, or the original 
             print 'Unexpected error :', sys.exc_info()
 
 def read_pcap_files(files, columns, filter_str, output_file):
+    """
+    This function use regex as input to process a bunche of pcap(ng) files.
+    Output from each file will be combined and stored in the ouput file.
+    Example:
+    data=read_pcap_files(files, columns, filter_str, output_file)
+
+    :param files: String. Files using regex. E.g. '*.pcap*'
+    :param columns: List of strings. A list of column names, e.g. ['frame.time_delta_displayed', 'frame.len']
+    :param filter_str: String. Display filter. Use Wireshark or tshark display filter rules. E.g. '!(ip.dst==127.0.0.1)' For references: https://www.wireshark.org/docs/dfref/f/frame.html
+    :param output_file: String. File path to store output data. E.g. 'a.txt'
+    :return: List of string
+    """
     pcap_files = glob.glob(files)
     data = []                # A list to hold everything write back to csv
     with open(output_file, 'wb') as myfile:
         myfile.write('')
     for pcap_file in pcap_files:
+        print 'Read data from \''+str(pcap_file)+'\''
         temp_pcap_file_reader = Pcap_File_Reader(pcap_file)
         temp_array = temp_pcap_file_reader.read_pcap(columns, filter_str)
         data += temp_array
         with open(output_file, 'ab') as myfile:
             myfile.write('\n'.join('\t'.join(line) for line in temp_array))
             myfile.write('\n')
+    print 'Data stored in file \''+str(output_file)+'\''
     return data
 
